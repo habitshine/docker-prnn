@@ -1,0 +1,72 @@
+version: '2.1'
+services:
+  # PG 主数据库
+  postgres-master:
+    container_name: "${POSTGRES_MASTER_NAME}"
+    build: ./postgres
+    restart: always
+    privileged: true
+    volumes:
+      - ./data/${POSTGRES_MASTER_NAME}:${POSTGRES_DATA}
+      - ./postgres/master/init.sh:/docker-entrypoint-initdb.d/init.sh
+      - ./postgres/master/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "${POSTGRES_MASTER_PORT}:5432"
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    networks:
+      extnetwork:
+        ipv4_address: 172.20.0.2
+  # PG 从数据库
+  postgres-slave:
+    container_name: "${POSTGRES_SLAVE_NAME}"
+    build: ./postgres
+    restart: always
+    privileged: true
+    links: 
+      - "${POSTGRES_MASTER_NAME}"
+    volumes:
+      - ./data/${POSTGRES_SLAVE_NAME}:${POSTGRES_DATA}
+      - ./postgres/slave/init.sh:/docker-entrypoint-initdb.d/init.sh
+      - ./postgres/slave/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "${POSTGRES_SLAVE_PORT}:5432"
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    networks:
+      extnetwork:
+        ipv4_address: 172.20.0.3
+  # Rabbit MQ
+  rabbitmq:
+    container_name: "rabbitmq"
+    build: ./rabbitmq
+    ports:
+      - "${RABBITMQ_PORT}:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+    networks:
+      extnetwork:
+        ipv4_address: 172.20.0.4
+  # NODE
+  egg-master:
+    container_name: "egg-master"
+    build: ./alinode
+    restart: always
+    privileged: true
+    environment:
+      SCRIPT: npm run dev
+    ports:
+      - "7001:7001"
+    volumes:
+      - ./egg-master:/code
+      - ./egg-master/start.sh:/init.sh
+    networks:
+      extnetwork:
+        ipv4_address: 172.20.0.5
+networks:
+   extnetwork:
+      ipam:
+         config:
+         - subnet: 172.20.0.0/16
+           gateway: 172.20.0.1
